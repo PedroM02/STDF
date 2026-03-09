@@ -1,11 +1,9 @@
-package testsupport;
+package links;
 
 import common.Address;
 import common.Membership;
 import common.NodeConfig;
 import common.ProcessId;
-import links.LinkReceiver;
-import links.RetryLink;
 import messages.AckMessage;
 import messages.Envelope;
 import messages.MessageId;
