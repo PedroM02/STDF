@@ -9,9 +9,9 @@ import transport.Transport;
 
 import java.util.concurrent.*;
 
-public class RetryLink implements UdpReceiver {
+public final class RetryLink implements UdpReceiver {
 
-    private final class Pending {
+    private static final class Pending {
         private final Envelope envelope;
         private final Address address;
 
@@ -21,21 +21,19 @@ public class RetryLink implements UdpReceiver {
         }
     }
 
-    private ProcessId id;
-    private Membership membership;
-    private Transport transport;
-    private LinkReceiver linkReceiver;
+    private final ProcessId id;
+    private final Membership membership;
+    private final Transport transport;
+    private final LinkReceiver linkReceiver;
 
-    private long retryIntervalMs;
-    private ConcurrentMap<MessageId, Pending> pending;
-    private ScheduledExecutorService scheduler;
+    private final ConcurrentMap<MessageId, Pending> pending;
+    private final ScheduledExecutorService scheduler;
 
     public RetryLink(ProcessId id, Membership membership, Transport transport, LinkReceiver linkReceiver, long retryIntervalMs) {
         this.id = id;
         this.membership = membership;
         this.transport = transport;
         this.linkReceiver = linkReceiver;
-        this.retryIntervalMs = retryIntervalMs;
 
         this.pending = new ConcurrentHashMap<>();
         this.scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -81,7 +79,7 @@ public class RetryLink implements UdpReceiver {
     }
 
     public void send(Envelope envelope, ProcessId to) {
-        MessageId messageId = new MessageId();
+        MessageId messageId = envelope.getMessageId();
         Address addressTo = membership.getAddress(to);
 
         transport.send(envelope, addressTo);

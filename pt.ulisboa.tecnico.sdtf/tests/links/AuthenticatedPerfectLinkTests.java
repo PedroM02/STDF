@@ -1,11 +1,9 @@
-package testsupport;
+package links;
 
 import common.Address;
 import common.Membership;
 import common.NodeConfig;
 import common.ProcessId;
-import links.AuthenticatedPerfectLink;
-import links.LinkReceiver;
 import messages.MessageId;
 import messages.MessageType;
 import messages.ProtocolMessage;

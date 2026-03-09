@@ -3,7 +3,7 @@ package messages;
 import common.ProcessId;
 import java.io.Serializable;
 
-public class Envelope implements Serializable {
+public final class Envelope implements Serializable {
     private final MessageType type;
     private final MessageId messageId;
     private final ProcessId sender;
