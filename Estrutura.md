@@ -162,7 +162,7 @@ Isto é ótimo porque depois o HotStuff só mete o seu conteúdo em `payload`.
 
 ## links/
 
-### `LinkReceiver`
+### `LinkReceive
 
 Uma interface para callbacks:
 ```
