@@ -1,21 +1,23 @@
 package common;
 
 import java.io.Serializable;
-import java.util.UUID;
 import java.util.Objects;
-
-
+import java.util.UUID;
 
 public final class ProcessId implements Serializable {
     private final String value;
 
+    /** Auto-generate a random unique ID. */
     public ProcessId() {
         this.value = UUID.randomUUID().toString();
     }
 
-    public String value() {
-        return value;
+    /** Create a ProcessId with a known stable value (e.g. "node-0"). */
+    public ProcessId(String value) {
+        this.value = Objects.requireNonNull(value, "value");
     }
+
+    public String value() { return value; }
 
     @Override
     public boolean equals(Object o) {
@@ -25,14 +27,8 @@ public final class ProcessId implements Serializable {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(value);
-    }
+    public int hashCode() { return Objects.hash(value); }
 
     @Override
-    public String toString() {
-        return Objects.toString(value);
-    }
-
-
+    public String toString() { return value; }
 }
