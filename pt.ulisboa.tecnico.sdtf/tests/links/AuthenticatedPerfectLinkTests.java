@@ -4,6 +4,7 @@ import common.Address;
 import common.Membership;
 import common.NodeConfig;
 import common.ProcessId;
+import crypto.SignatureUtils;
 import messages.MessageId;
 import messages.MessageType;
 import messages.ProtocolMessage;
@@ -26,7 +27,7 @@ import java.util.Map;
 
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -38,6 +39,7 @@ public final class AuthenticatedPerfectLinkTests {
     void validSignedMessageIsDelivered() throws Exception {
         KeyPair senderKeys = generateKeyPair();
         KeyPair receiverKeys = generateKeyPair();
+        SignatureUtils cryptoService = new SignatureUtils();
 
         ProcessId sender = new ProcessId();
         ProcessId receiver = new ProcessId();
@@ -52,7 +54,8 @@ public final class AuthenticatedPerfectLinkTests {
                 new NoopTransport(),
                 10_000,
                 receiverKeys.getPrivate(),
-                publicKeys
+                publicKeys,
+                cryptoService
         );
 
         LinkReceiver receiverCb = mock(LinkReceiver.class);
@@ -78,6 +81,7 @@ public final class AuthenticatedPerfectLinkTests {
     void tamperedPayloadIsRejected() throws Exception {
         KeyPair senderKeys = generateKeyPair();
         KeyPair receiverKeys = generateKeyPair();
+        SignatureUtils cryptoService = new SignatureUtils();
 
         ProcessId sender = new ProcessId();
         ProcessId receiver = new ProcessId();
@@ -92,7 +96,8 @@ public final class AuthenticatedPerfectLinkTests {
                 new NoopTransport(),
                 10_000,
                 receiverKeys.getPrivate(),
-                publicKeys
+                publicKeys,
+                cryptoService
         );
 
         LinkReceiver receiverCb = mock(LinkReceiver.class);
@@ -120,6 +125,7 @@ public final class AuthenticatedPerfectLinkTests {
         KeyPair senderKeys = generateKeyPair();
         KeyPair otherKeys = generateKeyPair();
         KeyPair receiverKeys = generateKeyPair();
+        SignatureUtils cryptoService = new SignatureUtils();
 
         ProcessId sender = new ProcessId();
         ProcessId receiver = new ProcessId();
@@ -134,7 +140,8 @@ public final class AuthenticatedPerfectLinkTests {
                 new NoopTransport(),
                 10_000,
                 receiverKeys.getPrivate(),
-                publicKeys
+                publicKeys,
+                cryptoService
         );
 
         LinkReceiver receiverCb = mock(LinkReceiver.class);
