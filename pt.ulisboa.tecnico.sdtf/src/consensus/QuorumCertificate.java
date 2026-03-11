@@ -1,8 +1,12 @@
 package consensus;
 
 import java.io.Serializable;
+import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+
+import crypto.CryptoService;
 
 public class QuorumCertificate implements Serializable {
 
@@ -11,20 +15,33 @@ public class QuorumCertificate implements Serializable {
     private final Phase phase;
     private final List<Vote> votes;          // used by Simulator
     private int hotStuffVoteCount = 0;       // used by HotStuffNode
+    private CryptoService cryptoService;
+    private Map<Integer, PublicKey> publicKeys;
 
-    public QuorumCertificate(String blockHash, long view, Phase phase) {
+    public QuorumCertificate(String blockHash, long view, Phase phase, CryptoService cryptoService, Map<Integer, PublicKey> publicKeys) {
         this.blockHash = blockHash;
         this.view = view;
         this.phase = phase;
+        this.cryptoService = cryptoService;
+        this.publicKeys = publicKeys;
         this.votes = new ArrayList<>();
     }
 
-    /** For Simulator / classic path. */
     public void addVote(Vote vote) {
-        votes.add(vote);
+
+        PublicKey key = publicKeys.get(vote.getVoterId());
+
+        boolean valid = cryptoService.verify(
+                key,
+                vote.toBytes(),
+                vote.getSignature()
+        );
+
+        if (valid) {
+            votes.add(vote);
+        }
     }
 
-    /** For HotStuffNode path (votes stored externally, QC just tracks count). */
     public void addVote(HotStuffMessage msg) {
         hotStuffVoteCount++;
     }

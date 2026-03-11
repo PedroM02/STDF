@@ -9,6 +9,8 @@ import messages.MessageId;
 import messages.MessageType;
 import messages.ProtocolMessage;
 
+import crypto.CryptoService;
+import java.security.PublicKey;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
@@ -42,6 +44,10 @@ public final class HotStuffNode implements LinkReceiver {
     private final Consumer<String> onDecide;
     private final long viewTimeoutMs;
 
+    // ---- crypto ----
+    private final CryptoService cryptoService;
+    private final Map<Integer, PublicKey> publicKeys;
+
     // ---- per-view state - protected by intrinsic lock (this) ----
     private long currentView = 1;
     private Block lockedBlock = null;
@@ -62,6 +68,7 @@ public final class HotStuffNode implements LinkReceiver {
     });
     private ScheduledFuture<?> viewTimer;
 
+    // ---- constructors ----
     public HotStuffNode(
             int intId,
             int n,
@@ -69,7 +76,9 @@ public final class HotStuffNode implements LinkReceiver {
             AuthenticatedPerfectLink link,
             BlockchainService ledger,
             Consumer<String> onDecide,
-            long viewTimeoutMs
+            long viewTimeoutMs,
+            CryptoService cryptoService,
+            Map<Integer, PublicKey> publicKeys
     ) {
         this.intId = intId;
         this.n = n;
@@ -79,6 +88,10 @@ public final class HotStuffNode implements LinkReceiver {
         this.ledger = ledger;
         this.onDecide = onDecide;
         this.viewTimeoutMs = viewTimeoutMs;
+
+        this.cryptoService = cryptoService;
+        this.publicKeys = publicKeys;
+
         link.setReceiver(this);
 
         for (MessageType t : List.of(
@@ -91,10 +104,14 @@ public final class HotStuffNode implements LinkReceiver {
 
     public HotStuffNode(int intId, int n, Membership membership,
                         AuthenticatedPerfectLink link, BlockchainService ledger,
-                        Consumer<String> onDecide) {
-        this(intId, n, membership, link, ledger, onDecide, 5000);
+                        Consumer<String> onDecide,
+                        CryptoService cryptoService,
+                        Map<Integer, PublicKey> publicKeys) {
+        this(intId, n, membership, link, ledger, onDecide,
+             5000, cryptoService, publicKeys);
     }
 
+    // ---- lifecycle ----
     public synchronized void start() {
         if (isLeader(currentView)) {
             tryStartRound();
@@ -114,6 +131,7 @@ public final class HotStuffNode implements LinkReceiver {
         }
     }
 
+    // ---- message handling ----
     @Override
     public synchronized void onDeliver(ProtocolMessage payload, ProcessId from, MessageId messageId) {
         if (!(payload instanceof HotStuffMessage msg)) return;
@@ -134,6 +152,7 @@ public final class HotStuffNode implements LinkReceiver {
         }
     }
 
+    // ---- HotStuff protocol methods ----
     private void tryStartRound() {
         String value = pendingValues.poll();
         if (value == null) return;
@@ -148,7 +167,7 @@ public final class HotStuffNode implements LinkReceiver {
         if (!isLeader(currentView)) return;
         if (!collectVote(MessageType.HOTSTUFF_PREPARE_VOTE, vote)) return;
         if (voteCount(MessageType.HOTSTUFF_PREPARE_VOTE, vote.getBlock().getHash()) >= quorumSize) {
-            prepareQC = new QuorumCertificate(vote.getBlock().getHash(), currentView, Phase.PREPARE);
+            prepareQC = new QuorumCertificate(vote.getBlock().getHash(), currentView, Phase.PREPARE, cryptoService, publicKeys);
             log("PRE_COMMIT view=" + currentView);
             broadcast(new HotStuffMessage(
                     MessageType.HOTSTUFF_PRE_COMMIT, currentView, vote.getBlock(), prepareQC, intId));
@@ -161,7 +180,7 @@ public final class HotStuffNode implements LinkReceiver {
         if (!collectVote(MessageType.HOTSTUFF_PRE_COMMIT_VOTE, vote)) return;
         if (voteCount(MessageType.HOTSTUFF_PRE_COMMIT_VOTE, vote.getBlock().getHash()) >= quorumSize) {
             QuorumCertificate qc = new QuorumCertificate(
-                    vote.getBlock().getHash(), currentView, Phase.PRE_COMMIT);
+                    vote.getBlock().getHash(), currentView, Phase.PRE_COMMIT, cryptoService, publicKeys);
             log("COMMIT view=" + currentView);
             broadcast(new HotStuffMessage(
                     MessageType.HOTSTUFF_COMMIT, currentView, vote.getBlock(), qc, intId));
@@ -174,7 +193,7 @@ public final class HotStuffNode implements LinkReceiver {
         if (!collectVote(MessageType.HOTSTUFF_COMMIT_VOTE, vote)) return;
         if (voteCount(MessageType.HOTSTUFF_COMMIT_VOTE, vote.getBlock().getHash()) >= quorumSize) {
             QuorumCertificate qc = new QuorumCertificate(
-                    vote.getBlock().getHash(), currentView, Phase.COMMIT);
+                    vote.getBlock().getHash(), currentView, Phase.COMMIT, cryptoService, publicKeys);
             log("DECIDE view=" + currentView + " cmd=" + vote.getBlock().getCommand());
             broadcast(new HotStuffMessage(
                     MessageType.HOTSTUFF_DECIDE, currentView, vote.getBlock(), qc, intId));
@@ -288,6 +307,7 @@ public final class HotStuffNode implements LinkReceiver {
         }
     }
 
+    // ---- utility ----
     private void resetViewTimer() {
         if (viewTimer != null) viewTimer.cancel(false);
         viewTimer = timerPool.schedule(this::viewTimeout, viewTimeoutMs, TimeUnit.MILLISECONDS);

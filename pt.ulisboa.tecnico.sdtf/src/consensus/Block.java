@@ -2,7 +2,7 @@ package consensus;
 
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import crypto.HashUtils;
 
 public class Block implements Serializable {
 
@@ -26,8 +26,7 @@ public class Block implements Serializable {
     public String getHash() {
         String data = parentHash + "|" + command + "|" + view + "|" + proposerId;
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(data.getBytes(StandardCharsets.UTF_8));
+            byte[] hash = HashUtils.sha256(data.getBytes(StandardCharsets.UTF_8));
             StringBuilder sb = new StringBuilder();
             for (byte b : hash) sb.append(String.format("%02x", b));
             return sb.toString();

@@ -16,11 +16,9 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.security.PrivateKey;
 import java.security.PublicKey;
-import java.security.Signature;
 import java.util.Map;
 
 public final class AuthenticatedPerfectLink implements LinkReceiver {
-    private static final String SIGNATURE_ALGORITHM = "SHA256withRSA";
 
     private final ProcessId self;
     private final PrivateKey privateKey;

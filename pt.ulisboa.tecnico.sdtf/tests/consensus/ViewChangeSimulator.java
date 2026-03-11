@@ -125,7 +125,14 @@ public class ViewChangeSimulator {
             if (!isLeader(currentView)) return;
             if (!addVote("PREPARE", msg.getBlock().getHash(), msg.getSenderId())) return;
             if (voteCount("PREPARE", msg.getBlock().getHash()) >= quorumSize) {
-                prepareQC = new QuorumCertificate(msg.getBlock().getHash(), currentView, Phase.PREPARE);
+                // Criar QC com cryptoService e publicKeys (mesmo se simulador não assina/verifica)
+                prepareQC = new QuorumCertificate(
+                        msg.getBlock().getHash(),
+                        currentView,
+                        Phase.PREPARE,
+                        new crypto.SignatureUtils(),      // simulação
+                        Map.of()                          // vazio porque este teste é in-memory
+                );
                 log("PRE_COMMIT view=" + currentView);
                 HotStuffMessage out = new HotStuffMessage(
                         MessageType.HOTSTUFF_PRE_COMMIT, currentView, msg.getBlock(), prepareQC, id);
@@ -139,7 +146,12 @@ public class ViewChangeSimulator {
             if (!addVote("PRE_COMMIT", msg.getBlock().getHash(), msg.getSenderId())) return;
             if (voteCount("PRE_COMMIT", msg.getBlock().getHash()) >= quorumSize) {
                 QuorumCertificate qc = new QuorumCertificate(
-                        msg.getBlock().getHash(), currentView, Phase.PRE_COMMIT);
+                        msg.getBlock().getHash(),
+                        currentView,
+                        Phase.PRE_COMMIT,
+                        new crypto.SignatureUtils(),
+                        Map.of()
+                );
                 log("COMMIT view=" + currentView);
                 HotStuffMessage out = new HotStuffMessage(
                         MessageType.HOTSTUFF_COMMIT, currentView, msg.getBlock(), qc, id);
@@ -153,7 +165,12 @@ public class ViewChangeSimulator {
             if (!addVote("COMMIT", msg.getBlock().getHash(), msg.getSenderId())) return;
             if (voteCount("COMMIT", msg.getBlock().getHash()) >= quorumSize) {
                 QuorumCertificate qc = new QuorumCertificate(
-                        msg.getBlock().getHash(), currentView, Phase.COMMIT);
+                        msg.getBlock().getHash(),
+                        currentView,
+                        Phase.COMMIT,
+                        new crypto.SignatureUtils(),
+                        Map.of()
+                );
                 log("DECIDE view=" + currentView + " cmd=" + msg.getBlock().getCommand());
                 HotStuffMessage out = new HotStuffMessage(
                         MessageType.HOTSTUFF_DECIDE, currentView, msg.getBlock(), qc, id);

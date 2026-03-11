@@ -1,11 +1,7 @@
 package consensus;
 
-import common.Membership;
-import common.ProcessId;
-import links.AuthenticatedPerfectLink;
-import links.LinkReceiver;
-import messages.MessageId;
-import messages.ProtocolMessage;
+import crypto.CryptoService;
+import java.security.PrivateKey;
 
 /**
  * ReplicaState wraps the per-replica mutable state used by the HotStuff protocol.
@@ -15,11 +11,16 @@ import messages.ProtocolMessage;
 public class ReplicaState {
 
     private final int id;
+    private final CryptoService cryptoService;
+    private final PrivateKey privateKey;
+
     private Block lockedBlock = null;
     private QuorumCertificate prepareQC = null;
 
-    public ReplicaState(int id) {
+    public ReplicaState(int id, CryptoService cryptoService, PrivateKey privateKey) {
         this.id = id;
+        this.cryptoService = cryptoService;
+        this.privateKey = privateKey;
     }
 
     public int getId() {
@@ -39,10 +40,16 @@ public class ReplicaState {
         long justifyView = (justifyQC != null) ? justifyQC.getView() : -1;
 
         if (lockedBlock == null
-                || (block.getParentHash().equals(lockedBlock.getHash()))
+                || block.getParentHash().equals(lockedBlock.getHash())
                 || justifyView > lockedView) {
-            return new Vote(block.getHash(), block.getView(), Phase.PREPARE, id);
+
+            Vote unsignedVote = new Vote(block.getHash(), block.getView(), Phase.PREPARE, id, null);
+
+            byte[] signature = cryptoService.sign(privateKey, unsignedVote.toBytes());
+
+            return new Vote(block.getHash(), block.getView(), Phase.PREPARE, id, signature);
         }
+
         return null;
     }
 
