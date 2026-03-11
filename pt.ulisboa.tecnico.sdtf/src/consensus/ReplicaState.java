@@ -3,11 +3,7 @@ package consensus;
 import crypto.CryptoService;
 import java.security.PrivateKey;
 
-/**
- * ReplicaState wraps the per-replica mutable state used by the HotStuff protocol.
- * In the networked version this delegates to HotStuffNode.
- * Kept here as a lightweight in-memory object for the Simulator.
- */
+
 public class ReplicaState {
 
     private final int id;
@@ -27,15 +23,10 @@ public class ReplicaState {
         return id;
     }
 
-    /**
-     * Called when a PREPARE proposal arrives.
-     * Returns a vote if the replica accepts the proposal, null otherwise.
-     */
     public Vote onReceiveProposal(Proposal proposal, int quorumSize) {
         Block block = proposal.getBlock();
         QuorumCertificate justifyQC = proposal.getJustifyQC();
 
-        // Safety rule: vote only if block extends locked block, or justify QC is higher
         long lockedView = (lockedBlock != null) ? lockedBlock.getView() : -1;
         long justifyView = (justifyQC != null) ? justifyQC.getView() : -1;
 
@@ -53,7 +44,6 @@ public class ReplicaState {
         return null;
     }
 
-    /** Update the locked block when a PRE_COMMIT or COMMIT QC is received. */
     public void updateLock(QuorumCertificate qc, Block block) {
         if (lockedBlock == null || qc.getView() > lockedBlock.getView()) {
             lockedBlock = block;

@@ -15,23 +15,7 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.Consumer;
 
-/**
- * Basic HotStuff replica (Algorithm 2 from the paper).
- *
- * Leader for view v = node with intId (v % n).
- *
- * Phases per view:
- *   PREPARE  ->  PREPARE_VOTE
- *   PRE_COMMIT (with prepareQC)  ->  PRE_COMMIT_VOTE
- *   COMMIT   (with preCommitQC)  ->  COMMIT_VOTE
- *   DECIDE   (with commitQC)     ->  append to ledger, advance view
- *
- * View change (Step 4 - crash fault tolerance):
- *   If a replica's view timer expires, it suspects the current leader crashed.
- *   It sends NEW_VIEW to the next leader and advances its own view.
- *   The next leader collects quorumSize NEW_VIEW messages, picks the highest
- *   prepareQC among them, and starts a new round.
- */
+
 public final class HotStuffNode implements LinkReceiver {
 
     // ---- configuration ----
@@ -44,11 +28,9 @@ public final class HotStuffNode implements LinkReceiver {
     private final Consumer<String> onDecide;
     private final long viewTimeoutMs;
 
-    // ---- crypto ----
     private final CryptoService cryptoService;
     private final Map<Integer, PublicKey> publicKeys;
 
-    // ---- per-view state - protected by intrinsic lock (this) ----
     private long currentView = 1;
     private Block lockedBlock = null;
     private QuorumCertificate prepareQC = null;
@@ -57,10 +39,8 @@ public final class HotStuffNode implements LinkReceiver {
             = new HashMap<>();
     private final Map<Long, List<HotStuffMessage>> newViewByView = new HashMap<>();
 
-    // ---- pending client values ----
     private final BlockingQueue<String> pendingValues = new LinkedBlockingQueue<>();
 
-    // ---- view timer ----
     private final ScheduledExecutorService timerPool = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "hotstuff-timer");
         t.setDaemon(true);
@@ -68,7 +48,6 @@ public final class HotStuffNode implements LinkReceiver {
     });
     private ScheduledFuture<?> viewTimer;
 
-    // ---- constructors ----
     public HotStuffNode(
             int intId,
             int n,
@@ -111,7 +90,6 @@ public final class HotStuffNode implements LinkReceiver {
              5000, cryptoService, publicKeys);
     }
 
-    // ---- lifecycle ----
     public synchronized void start() {
         if (isLeader(currentView)) {
             tryStartRound();
@@ -131,7 +109,6 @@ public final class HotStuffNode implements LinkReceiver {
         }
     }
 
-    // ---- message handling ----
     @Override
     public synchronized void onDeliver(ProtocolMessage payload, ProcessId from, MessageId messageId) {
         if (!(payload instanceof HotStuffMessage msg)) return;
@@ -152,7 +129,6 @@ public final class HotStuffNode implements LinkReceiver {
         }
     }
 
-    // ---- HotStuff protocol methods ----
     private void tryStartRound() {
         String value = pendingValues.poll();
         if (value == null) return;
@@ -307,7 +283,6 @@ public final class HotStuffNode implements LinkReceiver {
         }
     }
 
-    // ---- utility ----
     private void resetViewTimer() {
         if (viewTimer != null) viewTimer.cancel(false);
         viewTimer = timerPool.schedule(this::viewTimeout, viewTimeoutMs, TimeUnit.MILLISECONDS);

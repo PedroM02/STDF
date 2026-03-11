@@ -24,7 +24,6 @@ public class UdpTransport implements Transport {
         this.running = false;
     }
 
-    /** Allow setting receiver after construction (for wiring). */
     public void setReceiver(UdpReceiver receiver) {
         this.receiver = receiver;
     }

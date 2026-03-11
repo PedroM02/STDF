@@ -4,12 +4,7 @@ import messages.MessageType;
 import messages.ProtocolMessage;
 import java.io.Serializable;
 
-/**
- * A single HotStuff protocol message.
- * Used for PREPARE, PRE-COMMIT, COMMIT, DECIDE (leader→replicas)
- * and PREPARE_VOTE, PRE_COMMIT_VOTE, COMMIT_VOTE (replicas→leader)
- * and NEW_VIEW (replicas→next leader).
- */
+
 public final class HotStuffMessage implements ProtocolMessage, Serializable {
 
     private final MessageType type;

@@ -7,12 +7,12 @@ import java.util.UUID;
 public final class ProcessId implements Serializable {
     private final String value;
 
-    /** Auto-generate a random unique ID. */
+    // auto generate a random unique ID
     public ProcessId() {
         this.value = UUID.randomUUID().toString();
     }
 
-    /** Create a ProcessId with a known stable value (e.g. "node-0"). */
+    // create a ProcessId with a known stable value (ex: "node-0")
     public ProcessId(String value) {
         this.value = Objects.requireNonNull(value, "value");
     }

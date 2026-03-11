@@ -17,7 +17,7 @@ public final class NodeConfig implements Serializable {
         this.membership = null;
     }
 
-    /** Convenience constructor used in tests (no intId needed). */
+    // convenience constructor used in tests (no intId needed)
     public NodeConfig(ProcessId id, Address address, Membership membership) {
         this.intId = 0;
         this.id = id;

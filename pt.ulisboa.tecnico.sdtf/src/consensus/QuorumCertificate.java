@@ -13,8 +13,8 @@ public class QuorumCertificate implements Serializable {
     private final String blockHash;
     private final long view;
     private final Phase phase;
-    private final List<Vote> votes;          // used by Simulator
-    private int hotStuffVoteCount = 0;       // used by HotStuffNode
+    private final List<Vote> votes;         
+    private int hotStuffVoteCount = 0;       
     private CryptoService cryptoService;
     private Map<Integer, PublicKey> publicKeys;
 
