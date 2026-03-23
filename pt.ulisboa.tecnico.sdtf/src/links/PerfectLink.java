@@ -6,6 +6,7 @@ import messages.Envelope;
 import messages.ProtocolMessage;
 import messages.MessageId;
 import transport.Transport;
+import transport.UdpTransport;
 
 import java.util.Collections;
 import java.util.Set;
@@ -19,6 +20,9 @@ public final class PerfectLink implements LinkReceiver {
     public PerfectLink(ProcessId id, Membership membership, Transport transport, long retryIntervalMs) {
         this.delivered = Collections.newSetFromMap(new ConcurrentHashMap<>());
         this.retryLink = new RetryLink(id, membership, transport, this, retryIntervalMs);
+        if (transport instanceof UdpTransport udpTransport) {
+            udpTransport.setReceiver(retryLink);
+        }
     }
 
     public void setReceiver(LinkReceiver receiver) {

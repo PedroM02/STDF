@@ -1,119 +1,151 @@
 package consensus;
 
-import java.util.ArrayList;
-import java.util.List;
+import blockchain.BlockchainService;
+import blockchain.InMemoryLedger;
+import common.Address;
+import common.Membership;
+import common.NodeConfig;
+import common.ProcessId;
 import crypto.SignatureUtils;
+import links.AuthenticatedPerfectLink;
+import transport.UdpTransport;
+
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
-import java.util.HashMap;
-import java.util.Map;
 import java.security.PublicKey;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
-
-public class Simulator {
+public final class Simulator {
+    private static final String HOST = "127.0.0.1";
+    private static final int BASE_PORT = 19000;
+    private static final int MAX_PACKET_SIZE = 64 * 1024;
+    private static final long RETRY_INTERVAL_MS = 200;
+    private static final long VIEW_TIMEOUT_MS = 2_000;
 
     public static void run() {
         int n = 4;
-        int f = 1;
-        int quorumSize = 2 * f + 1; // 3
-
         SignatureUtils cryptoService = new SignatureUtils();
 
-        Map<Integer, PrivateKey> privateKeys = new HashMap<>();
-        Map<Integer, KeyPair> keyPairs = new HashMap<>();
-        Map<Integer, PublicKey> publicKeys = new HashMap<>();
+        Map<Integer, KeyPair> keyPairs = generateKeys(n);
+        Map<Integer, PublicKey> publicKeysByInt = new HashMap<>();
+        Map<Integer, PrivateKey> privateKeysByInt = new HashMap<>();
+        Map<ProcessId, PublicKey> publicKeysByProcess = new HashMap<>();
+        List<NodeConfig> nodeConfigs = new ArrayList<>();
+        List<ProcessId> processIds = new ArrayList<>();
 
-        KeyPairGenerator keyGen;
+        for (int i = 0; i < n; i++) {
+            ProcessId processId = new ProcessId("node-" + i);
+            Address address = new Address(HOST, BASE_PORT + i);
+            KeyPair keyPair = keyPairs.get(i);
+
+            processIds.add(processId);
+            nodeConfigs.add(new NodeConfig(i, processId, address));
+            publicKeysByInt.put(i, keyPair.getPublic());
+            privateKeysByInt.put(i, keyPair.getPrivate());
+            publicKeysByProcess.put(processId, keyPair.getPublic());
+        }
+
+        Membership membership = new Membership(nodeConfigs);
+        for (NodeConfig nodeConfig : nodeConfigs) {
+            nodeConfig.setMembership(membership);
+        }
+
+        List<HotStuffNode> nodes = new ArrayList<>();
+        List<BlockchainService> ledgers = new ArrayList<>();
+        CountDownLatch decisions = new CountDownLatch(n);
+
+        System.out.println("HotStuff network simulation");
+        System.out.println("Nodes: " + n);
+        System.out.println("Leader for view 1: node-" + Math.floorMod(1, n));
+
         try {
-            keyGen = KeyPairGenerator.getInstance("RSA");
-            keyGen.initialize(2048);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+            for (int i = 0; i < n; i++) {
+                final int nodeId = i;
+                ProcessId processId = processIds.get(i);
+                Address address = membership.getAddress(processId);
+                UdpTransport transport = new UdpTransport(address, null, MAX_PACKET_SIZE);
+                AuthenticatedPerfectLink link = new AuthenticatedPerfectLink(
+                        processId,
+                        membership,
+                        transport,
+                        RETRY_INTERVAL_MS,
+                        privateKeysByInt.get(i),
+                        publicKeysByProcess,
+                        cryptoService
+                );
 
-        for (int i = 0; i < n; i++) {
-            KeyPair kp = keyGen.generateKeyPair();
-            keyPairs.put(i, kp);
-            privateKeys.put(i, kp.getPrivate());
-            publicKeys.put(i, kp.getPublic());
-        }
+                BlockchainService ledger = new InMemoryLedger();
+                HotStuffNode node = new HotStuffNode(
+                        i,
+                        n,
+                        membership,
+                        link,
+                        ledger,
+                        decidedValue -> {
+                            System.out.println("[Callback node-" + nodeId + "] decided " + decidedValue);
+                            decisions.countDown();
+                        },
+                        VIEW_TIMEOUT_MS,
+                        cryptoService,
+                        publicKeysByInt
+                );
 
-        List<ReplicaState> replicas = new ArrayList<>();
-        for (int i = 0; i < n; i++) {
-            replicas.add(new ReplicaState(i, cryptoService, privateKeys.get(i)));
-        }
+                nodes.add(node);
+                ledgers.add(ledger);
+            }
 
-        int leaderId = 0;
+            for (HotStuffNode node : nodes) {
+                node.start();
+            }
 
-        Block genesis = new Block("0", "GENESIS", 0, -1);
+            String value = "append:hello";
+            int leaderId = Math.floorMod(1, n);
+            System.out.println("Submitting value to leader node-" + leaderId + ": " + value);
+            nodes.get(leaderId).submitValue(value);
 
-        Block block1 = new Block(genesis.getHash(), "append:hello", 1, leaderId);
-        Proposal proposal = new Proposal(block1, null);
-
-        System.out.println("HotStuff Simulation");
-        System.out.println("Leader proposes: " + block1.getCommand());
-
-        QuorumCertificate prepareQC = new QuorumCertificate(block1.getHash(), 1, Phase.PREPARE, cryptoService, publicKeys);
-        for (ReplicaState r : replicas) {
-            Vote unsignedVote = r.onReceiveProposal(proposal, quorumSize);
-            if (unsignedVote != null) {
-                byte[] voteBytes = unsignedVote.toBytes();
-                byte[] sig = cryptoService.sign(privateKeys.get(r.getId()), voteBytes);
-                Vote signedVote = new Vote(unsignedVote.getBlockHash(), unsignedVote.getView(),
-                                           unsignedVote.getPhase(), r.getId(), sig);
-                prepareQC.addVote(signedVote);
-                System.out.println("  Replica " + r.getId() + " votes PREPARE");
+            boolean completed = decisions.await(10, TimeUnit.SECONDS);
+            if (!completed) {
+                System.out.println("FAILED: timeout waiting for all nodes to decide");
+            } else {
+                System.out.println("All nodes decided");
+                for (int i = 0; i < ledgers.size(); i++) {
+                    System.out.println("  Ledger node-" + i + ": " + ledgers.get(i).readAll());
+                }
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Simulation interrupted", e);
+        } finally {
+            for (HotStuffNode node : nodes) {
+                node.stop();
             }
         }
 
-        if (!prepareQC.hasQuorum(quorumSize)) {
-            System.out.println("FAILED: no PREPARE quorum");
-            return;
-        }
-        System.out.println("PREPARE QC formed (" + prepareQC.voteCount() + " votes)");
-
-        QuorumCertificate preCommitQC = new QuorumCertificate(block1.getHash(), 1, Phase.PRE_COMMIT, cryptoService, publicKeys);
-        for (ReplicaState r : replicas) {
-            r.updateLock(prepareQC, block1);
-            Vote unsignedVote = new Vote(block1.getHash(), 1, Phase.PRE_COMMIT, r.getId(), null);
-            byte[] voteBytes = unsignedVote.toBytes();
-            byte[] sig = cryptoService.sign(privateKeys.get(r.getId()), voteBytes);
-            Vote vote = new Vote(block1.getHash(), 1, Phase.PRE_COMMIT, r.getId(), sig);
-            preCommitQC.addVote(vote);
-
-            System.out.println("  Replica " + r.getId() + " votes PRE_COMMIT");
-        }
-
-        if (!preCommitQC.hasQuorum(quorumSize)) {
-            System.out.println("FAILED: no PRE_COMMIT quorum");
-            return;
-        }
-        System.out.println("PRE_COMMIT QC formed (" + preCommitQC.voteCount() + " votes)");
-
-        QuorumCertificate commitQC = new QuorumCertificate(block1.getHash(), 1, Phase.COMMIT, cryptoService, publicKeys);
-        for (ReplicaState r : replicas) {
-            r.updateLock(preCommitQC, block1);
-            Vote unsignedVote = new Vote(block1.getHash(), 1, Phase.COMMIT, r.getId(), null);
-            byte[] voteBytes = unsignedVote.toBytes();
-            byte[] sig = cryptoService.sign(privateKeys.get(r.getId()), voteBytes);
-            Vote vote = new Vote(block1.getHash(), 1, Phase.COMMIT, r.getId(), sig);
-            commitQC.addVote(vote);
-
-            System.out.println("  Replica " + r.getId() + " votes COMMIT");
-        }
-
-        if (!commitQC.hasQuorum(quorumSize)) {
-            System.out.println("FAILED: no COMMIT quorum");
-            return;
-        }
-        System.out.println("COMMIT QC formed (" + commitQC.voteCount() + " votes)");
-
-        System.out.println("DECIDED: " + block1.getCommand());
         System.out.println("=== Simulation complete ===");
     }
 
+    private static Map<Integer, KeyPair> generateKeys(int n) {
+        try {
+            KeyPairGenerator keyGenerator = KeyPairGenerator.getInstance("RSA");
+            keyGenerator.initialize(2048);
+
+            Map<Integer, KeyPair> keyPairs = new HashMap<>();
+            for (int i = 0; i < n; i++) {
+                keyPairs.put(i, keyGenerator.generateKeyPair());
+            }
+            return keyPairs;
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate RSA keys", e);
+        }
+    }
+
     public static void main(String[] args) {
-        Simulator.run();
+        run();
     }
 }
