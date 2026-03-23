@@ -15,8 +15,8 @@ public class QuorumCertificate implements Serializable {
     private final Phase phase;
     private final List<Vote> votes;         
     private int hotStuffVoteCount = 0;       
-    private CryptoService cryptoService;
-    private Map<Integer, PublicKey> publicKeys;
+    private transient CryptoService cryptoService;
+    private transient Map<Integer, PublicKey> publicKeys;
 
     public QuorumCertificate(String blockHash, long view, Phase phase, CryptoService cryptoService, Map<Integer, PublicKey> publicKeys) {
         this.blockHash = blockHash;
