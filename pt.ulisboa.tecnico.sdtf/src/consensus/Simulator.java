@@ -7,8 +7,11 @@ import common.Membership;
 import common.NodeConfig;
 import common.ProcessId;
 import crypto.SignatureUtils;
+import crypto.ThresholdSignatureService;
 import links.AuthenticatedPerfectLink;
 import transport.UdpTransport;
+import com.weavechain.sig.ThresholdSigEd25519Params;
+import com.weavechain.sig.ThresholdSigEd25519;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -26,14 +29,15 @@ public final class Simulator {
     private static final int BASE_PORT = 19000;
     private static final int MAX_PACKET_SIZE = 64 * 1024;
     private static final long RETRY_INTERVAL_MS = 200;
-    private static final long VIEW_TIMEOUT_MS = 2_000;
+    private static final long VIEW_TIMEOUT_MS = 8_000;
 
     public static void run() {
         int n = 4;
         SignatureUtils cryptoService = new SignatureUtils();
+        int quorumSize = 2 * ((n - 1) / 3) + 1;
+        ThresholdSigEd25519Params thresholdParams = generateThresholdParams(quorumSize, n);
 
         Map<Integer, KeyPair> keyPairs = generateKeys(n);
-        Map<Integer, PublicKey> publicKeysByInt = new HashMap<>();
         Map<Integer, PrivateKey> privateKeysByInt = new HashMap<>();
         Map<ProcessId, PublicKey> publicKeysByProcess = new HashMap<>();
         List<NodeConfig> nodeConfigs = new ArrayList<>();
@@ -46,7 +50,6 @@ public final class Simulator {
 
             processIds.add(processId);
             nodeConfigs.add(new NodeConfig(i, processId, address));
-            publicKeysByInt.put(i, keyPair.getPublic());
             privateKeysByInt.put(i, keyPair.getPrivate());
             publicKeysByProcess.put(processId, keyPair.getPublic());
         }
@@ -92,8 +95,13 @@ public final class Simulator {
                             decisions.countDown();
                         },
                         VIEW_TIMEOUT_MS,
-                        cryptoService,
-                        publicKeysByInt
+                        1L,
+                        new ThresholdSignatureService(
+                                quorumSize,
+                                n,
+                                thresholdParams.getPublicKey(),
+                                thresholdParams.getPrivateShares().get(i).toByteArray()
+                        )
                 );
 
                 nodes.add(node);
@@ -142,6 +150,14 @@ public final class Simulator {
             return keyPairs;
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate RSA keys", e);
+        }
+    }
+
+    private static ThresholdSigEd25519Params generateThresholdParams(int threshold, int n) {
+        try {
+            return new ThresholdSigEd25519(threshold, n).generate();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate threshold signature parameters", e);
         }
     }
 

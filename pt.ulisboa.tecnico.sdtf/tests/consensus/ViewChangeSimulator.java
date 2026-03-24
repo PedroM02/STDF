@@ -130,8 +130,11 @@ public class ViewChangeSimulator {
                         msg.getBlock().getHash(),
                         currentView,
                         Phase.PREPARE,
-                        new crypto.SignatureUtils(),      // simulação
-                        Map.of()                          // vazio porque este teste é in-memory
+                        1L,
+                        quorumSize,
+                        new byte[64],
+                        List.copyOf(votes.getOrDefault("PREPARE", Map.of())
+                                .getOrDefault(msg.getBlock().getHash(), List.of()))
                 );
                 log("PRE_COMMIT view=" + currentView);
                 HotStuffMessage out = new HotStuffMessage(
@@ -149,8 +152,11 @@ public class ViewChangeSimulator {
                         msg.getBlock().getHash(),
                         currentView,
                         Phase.PRE_COMMIT,
-                        new crypto.SignatureUtils(),
-                        Map.of()
+                        1L,
+                        quorumSize,
+                        new byte[64],
+                        List.copyOf(votes.getOrDefault("PRE_COMMIT", Map.of())
+                                .getOrDefault(msg.getBlock().getHash(), List.of()))
                 );
                 log("COMMIT view=" + currentView);
                 HotStuffMessage out = new HotStuffMessage(
@@ -168,8 +174,11 @@ public class ViewChangeSimulator {
                         msg.getBlock().getHash(),
                         currentView,
                         Phase.COMMIT,
-                        new crypto.SignatureUtils(),
-                        Map.of()
+                        1L,
+                        quorumSize,
+                        new byte[64],
+                        List.copyOf(votes.getOrDefault("COMMIT", Map.of())
+                                .getOrDefault(msg.getBlock().getHash(), List.of()))
                 );
                 log("DECIDE view=" + currentView + " cmd=" + msg.getBlock().getCommand());
                 HotStuffMessage out = new HotStuffMessage(

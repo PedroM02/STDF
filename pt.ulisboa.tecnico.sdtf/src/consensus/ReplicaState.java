@@ -24,6 +24,7 @@ public class ReplicaState {
     }
 
     public Vote onReceiveProposal(Proposal proposal, int quorumSize) {
+        long configVersion = 1L;
         Block block = proposal.getBlock();
         QuorumCertificate justifyQC = proposal.getJustifyQC();
 
@@ -34,11 +35,11 @@ public class ReplicaState {
                 || block.getParentHash().equals(lockedBlock.getHash())
                 || justifyView > lockedView) {
 
-            Vote unsignedVote = new Vote(block.getHash(), block.getView(), Phase.PREPARE, id, null);
+            Vote unsignedVote = new Vote(block.getHash(), block.getView(), Phase.PREPARE, configVersion, id, null);
 
             byte[] signature = cryptoService.sign(privateKey, unsignedVote.toBytes());
 
-            return new Vote(block.getHash(), block.getView(), Phase.PREPARE, id, signature);
+            return new Vote(block.getHash(), block.getView(), Phase.PREPARE, configVersion, id, signature);
         }
 
         return null;
