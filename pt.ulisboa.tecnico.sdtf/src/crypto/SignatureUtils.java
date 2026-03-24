@@ -10,8 +10,8 @@ public final class SignatureUtils implements CryptoService {
     public byte[] sign(PrivateKey privateKey, byte[] data) {
         try {
             Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
-            signature.initSign(privateKey);
-            signature.update(data);
+            signature.initSign(privateKey); //prepares the signature to sign
+            signature.update(data); //prepares the data to be signed
             return signature.sign();
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -22,8 +22,8 @@ public final class SignatureUtils implements CryptoService {
     public boolean verify(PublicKey publicKey, byte[] data, byte[] signatureBytes) {
         try {
             Signature signature = Signature.getInstance(SIGNATURE_ALGORITHM);
-            signature.initVerify(publicKey);
-            signature.update(data);
+            signature.initVerify(publicKey); //prepares the signature for verification
+            signature.update(data); //prepares the data to be verified
             return signature.verify(signatureBytes);
         } catch (Exception e) {
             return false;

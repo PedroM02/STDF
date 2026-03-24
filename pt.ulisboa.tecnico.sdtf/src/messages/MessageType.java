@@ -3,6 +3,7 @@ package messages;
 public enum MessageType {
     DATA,
     ACK,
+    DH_HELLO,
     HOTSTUFF_PREPARE,
     HOTSTUFF_PREPARE_VOTE,
     HOTSTUFF_PRE_COMMIT,

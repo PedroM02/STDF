@@ -6,21 +6,14 @@ import common.Address;
 import common.Membership;
 import common.NodeConfig;
 import common.ProcessId;
-import crypto.SignatureUtils;
 import crypto.ThresholdSignatureService;
 import links.AuthenticatedPerfectLink;
 import transport.UdpTransport;
 import com.weavechain.sig.ThresholdSigEd25519Params;
 import com.weavechain.sig.ThresholdSigEd25519;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.PrivateKey;
-import java.security.PublicKey;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -31,27 +24,25 @@ public final class Simulator {
     private static final long RETRY_INTERVAL_MS = 200;
     private static final long VIEW_TIMEOUT_MS = 8_000;
 
+    // Extra time to let the DH handshakes complete before starting consensus
+    private static final long HANDSHAKE_WAIT_MS = 1_000;
+
     public static void run() {
-        int n = 4;
-        SignatureUtils cryptoService = new SignatureUtils();
-        int quorumSize = 2 * ((n - 1) / 3) + 1;
+        int n = 4;  //nº replicas
+        int f = 1;
+        int quorumSize = 2 * ((n - f) / 3) + 1;
+
         ThresholdSigEd25519Params thresholdParams = generateThresholdParams(quorumSize, n);
 
-        Map<Integer, KeyPair> keyPairs = generateKeys(n);
-        Map<Integer, PrivateKey> privateKeysByInt = new HashMap<>();
-        Map<ProcessId, PublicKey> publicKeysByProcess = new HashMap<>();
         List<NodeConfig> nodeConfigs = new ArrayList<>();
         List<ProcessId> processIds = new ArrayList<>();
 
         for (int i = 0; i < n; i++) {
             ProcessId processId = new ProcessId("node-" + i);
             Address address = new Address(HOST, BASE_PORT + i);
-            KeyPair keyPair = keyPairs.get(i);
 
             processIds.add(processId);
             nodeConfigs.add(new NodeConfig(i, processId, address));
-            privateKeysByInt.put(i, keyPair.getPrivate());
-            publicKeysByProcess.put(processId, keyPair.getPublic());
         }
 
         Membership membership = new Membership(nodeConfigs);
@@ -59,6 +50,7 @@ public final class Simulator {
             nodeConfig.setMembership(membership);
         }
 
+        List<AuthenticatedPerfectLink> links = new ArrayList<>();
         List<HotStuffNode> nodes = new ArrayList<>();
         List<BlockchainService> ledgers = new ArrayList<>();
         CountDownLatch decisions = new CountDownLatch(n);
@@ -73,14 +65,13 @@ public final class Simulator {
                 ProcessId processId = processIds.get(i);
                 Address address = membership.getAddress(processId);
                 UdpTransport transport = new UdpTransport(address, null, MAX_PACKET_SIZE);
+
+                // APL now uses DH key exchange + HMAC — no RSA keys needed here
                 AuthenticatedPerfectLink link = new AuthenticatedPerfectLink(
                         processId,
                         membership,
                         transport,
-                        RETRY_INTERVAL_MS,
-                        privateKeysByInt.get(i),
-                        publicKeysByProcess,
-                        cryptoService
+                        RETRY_INTERVAL_MS
                 );
 
                 BlockchainService ledger = new InMemoryLedger();
@@ -104,9 +95,18 @@ public final class Simulator {
                         )
                 );
 
+                links.add(link);
                 nodes.add(node);
                 ledgers.add(ledger);
             }
+
+            // Trigger DH handshakes — each node broadcasts its DH public key to all peers
+            for (AuthenticatedPerfectLink link : links) {
+                link.startHandshake();
+            }
+
+            // Wait for handshakes to complete before starting consensus
+            Thread.sleep(HANDSHAKE_WAIT_MS);
 
             for (HotStuffNode node : nodes) {
                 node.start();
@@ -136,21 +136,6 @@ public final class Simulator {
         }
 
         System.out.println("=== Simulation complete ===");
-    }
-
-    private static Map<Integer, KeyPair> generateKeys(int n) {
-        try {
-            KeyPairGenerator keyGenerator = KeyPairGenerator.getInstance("RSA");
-            keyGenerator.initialize(2048);
-
-            Map<Integer, KeyPair> keyPairs = new HashMap<>();
-            for (int i = 0; i < n; i++) {
-                keyPairs.put(i, keyGenerator.generateKeyPair());
-            }
-            return keyPairs;
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to generate RSA keys", e);
-        }
     }
 
     private static ThresholdSigEd25519Params generateThresholdParams(int threshold, int n) {
