@@ -1,0 +1,17 @@
+{
+  "index": 1,
+  "block_hash": "c5da77982580559df0f61c4c5174be1433617b8affa3ea30f2ccbc0f6749d8c7",
+  "previous_block_hash": "GENESIS",
+  "view": 1,
+  "proposer": 1,
+  "transactions": [
+    {
+      "from": "alice",
+      "to": "bob",
+      "value": 100,
+      "gasPrice": 1,
+      "gasLimit": 21000,
+      "nonce": 0
+    }
+  ]
+}
