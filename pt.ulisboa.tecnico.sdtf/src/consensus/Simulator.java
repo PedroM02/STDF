@@ -8,6 +8,7 @@ import common.NodeConfig;
 import common.ProcessId;
 import crypto.ThresholdSignatureService;
 import links.AuthenticatedPerfectLink;
+import transaction.Transaction;
 import transport.UdpTransport;
 import com.weavechain.sig.ThresholdSigEd25519Params;
 import com.weavechain.sig.ThresholdSigEd25519;
@@ -53,7 +54,7 @@ public final class Simulator {
         List<AuthenticatedPerfectLink> links = new ArrayList<>();
         List<HotStuffNode> nodes = new ArrayList<>();
         List<BlockchainService> ledgers = new ArrayList<>();
-        CountDownLatch decisions = new CountDownLatch(n);
+        CountDownLatch decisions = new CountDownLatch(n - f);
 
         System.out.println("HotStuff network simulation");
         System.out.println("Nodes: " + n);
@@ -65,6 +66,7 @@ public final class Simulator {
                 ProcessId processId = processIds.get(i);
                 Address address = membership.getAddress(processId);
                 UdpTransport transport = new UdpTransport(address, null, MAX_PACKET_SIZE);
+                transport.start();
 
                 // APL now uses DH key exchange + HMAC — no RSA keys needed here
                 AuthenticatedPerfectLink link = new AuthenticatedPerfectLink(
@@ -100,22 +102,53 @@ public final class Simulator {
                 ledgers.add(ledger);
             }
 
-            // Trigger DH handshakes — each node broadcasts its DH public key to all peers
+            // Trigger DH handshakes
             for (AuthenticatedPerfectLink link : links) {
                 link.startHandshake();
             }
 
-            // Wait for handshakes to complete before starting consensus
-            Thread.sleep(HANDSHAKE_WAIT_MS);
-
-            for (HotStuffNode node : nodes) {
-                node.start();
+            // Espera até todos os handshakes estarem completos
+            System.out.println("Waiting for DH handshakes...");
+            long deadline = System.currentTimeMillis() + 10_000;
+            boolean allReady = false;
+            while (System.currentTimeMillis() < deadline) {
+                for (int i = 0; i < links.size(); i++) {
+                    AuthenticatedPerfectLink link = links.get(i);
+                    long ready = membership.getProcessIds().stream()
+                        .filter(pid -> !pid.equals(link.getSelf()))
+                        .filter(link::isReady)
+                        .count();
+                    System.out.println("  node-" + i + " handshakes: " + ready + "/" + (n-1));
+                }           
+                allReady = links.stream().allMatch(link ->
+                    membership.getProcessIds().stream()
+                        .filter(pid -> !pid.equals(link.getSelf()))
+                        .allMatch(link::isReady)
+                );
+                if (allReady) break;
+                Thread.sleep(50);
             }
+            if (!allReady) {
+                System.out.println("FAILED: handshakes did not complete in time");
+                return;
+            }
+System.out.println("All handshakes complete, starting consensus");
 
-            String value = "append:hello";
-            int leaderId = Math.floorMod(1, n);
-            System.out.println("Submitting value to leader node-" + leaderId + ": " + value);
-            nodes.get(leaderId).submitValue(value);
+            Transaction tx = new Transaction(
+                "alice",
+                "bob",
+                100L,
+                10L,
+                21000L,
+                0L,
+                null
+            );
+
+            // cliente envia a todos os nós
+            System.out.println("Client broadcasting transaction to all nodes");
+            for (HotStuffNode node : nodes) {
+                node.submitValue(tx);
+            }
 
             boolean completed = decisions.await(10, TimeUnit.SECONDS);
             if (!completed) {

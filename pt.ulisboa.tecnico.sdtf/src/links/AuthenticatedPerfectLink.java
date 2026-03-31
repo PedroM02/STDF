@@ -114,6 +114,14 @@ public final class AuthenticatedPerfectLink implements LinkReceiver {
      * if it has not, the message is dropped and a warning is logged.
      */
     public void send(ProcessId destination, ProtocolMessage payload) {
+        if (destination.equals(self)) {
+            LinkReceiver target = receiver;
+            if (target != null) {
+                target.onDeliver(payload, self, new MessageId());
+            }
+            return;
+        }
+
         SecretKey key = sharedKeys.get(destination);
         if (key == null) {
             System.err.println("[APL " + self + "] WARNING: no shared key with "
@@ -150,6 +158,8 @@ public final class AuthenticatedPerfectLink implements LinkReceiver {
     public Set<ProcessId> readyPeers() {
         return sharedKeys.keySet();
     }
+
+    public ProcessId getSelf() { return self; }
 
     // -------------------------------------------------------------------------
     // LinkReceiver — called by PerfectLink when a message arrives

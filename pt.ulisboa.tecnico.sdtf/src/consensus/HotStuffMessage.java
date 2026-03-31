@@ -31,7 +31,7 @@ public final class HotStuffMessage implements ProtocolMessage, Serializable {
     public String toString() {
         return "HotStuffMessage{type=" + type + ", view=" + viewNumber
                 + ", sender=" + senderId
-                + (block != null ? ", block=" + block.getCommand() : "")
+                + (block != null ? ", block=" + block : "")
                 + "}";
     }
 }

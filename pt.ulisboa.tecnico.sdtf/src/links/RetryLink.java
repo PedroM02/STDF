@@ -44,7 +44,7 @@ public final class RetryLink implements UdpReceiver {
             }
         }, retryIntervalMs, retryIntervalMs, TimeUnit.MILLISECONDS);
 
-        transport.start();
+        transport.setReceiver(this);
     }
 
     @Override
@@ -66,6 +66,12 @@ public final class RetryLink implements UdpReceiver {
                 Address to = membership.getAddress(envelope.getSender());
                 transport.send(ackEnvelope, to);
 
+                ProtocolMessage payload = (ProtocolMessage) envelope.getPayload();
+                if (linkReceiver != null) {
+                    linkReceiver.onDeliver(payload, envelope.getSender(), envelope.getMessageId());
+                }
+            }
+            case DH_HELLO -> {
                 ProtocolMessage payload = (ProtocolMessage) envelope.getPayload();
                 if (linkReceiver != null) {
                     linkReceiver.onDeliver(payload, envelope.getSender(), envelope.getMessageId());

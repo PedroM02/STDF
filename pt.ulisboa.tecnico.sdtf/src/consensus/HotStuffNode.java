@@ -9,6 +9,7 @@ import links.LinkReceiver;
 import messages.MessageId;
 import messages.MessageType;
 import messages.ProtocolMessage;
+import transaction.Transaction;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -72,7 +73,7 @@ public final class HotStuffNode implements LinkReceiver {
     private final Map<String, Block> blocksByHash = new HashMap<>();
     private final Map<Long, List<HotStuffMessage>> newViewByView = new HashMap<>();
 
-    private final BlockingQueue<String> pendingValues = new LinkedBlockingQueue<>();
+    private final BlockingQueue<Transaction> pendingValues = new LinkedBlockingQueue<>();
 
     private final ScheduledExecutorService timerPool = Executors.newSingleThreadScheduledExecutor(r -> {
         Thread t = new Thread(r, "hotstuff-timer");
@@ -119,9 +120,14 @@ public final class HotStuffNode implements LinkReceiver {
     }
 
     public synchronized void start() {
+        HotStuffMessage newViewMsg = new HotStuffMessage(
+                MessageType.HOTSTUFF_NEW_VIEW, currentView, null, prepareQC, intId);
         if (isLeader(currentView)) {
-            tryStartRound();
+            newViewByView.computeIfAbsent(currentView, k -> new ArrayList<>())
+                    .add(newViewMsg);
+            tryFormNewViewQuorum(currentView);
         }
+        sendToLeader(newViewMsg, currentView);
         resetViewTimer();
     }
 
@@ -130,8 +136,8 @@ public final class HotStuffNode implements LinkReceiver {
         link.stop();
     }
 
-    public synchronized void submitValue(String value) {
-        pendingValues.add(value);
+    public synchronized void submitValue(Transaction tx) {
+        pendingValues.add(tx);
         if (isLeader(currentView)) {
             tryStartRound();
         }
@@ -172,13 +178,15 @@ public final class HotStuffNode implements LinkReceiver {
     }
 
     private void tryStartRound() {
-        String value = pendingValues.poll();
-        if (value == null) return;
+        if (pendingValues.isEmpty()) return;
+
+        List<Transaction> txs = new ArrayList<>();
+        pendingValues.drainTo(txs);
 
         String parentHash = prepareQC != null ? prepareQC.getBlockHash() : "GENESIS";
-        Block block = new Block(parentHash, value, currentView, intId);
+        Block block = new Block(parentHash, txs, currentView, intId);
         blocksByHash.put(block.getHash(), block);
-        log("PREPARE view=" + currentView + " cmd=" + value);
+        log("PREPARE view=" + currentView + " cmd=" + txs.size());
         broadcast(new HotStuffMessage(
                 MessageType.HOTSTUFF_PREPARE,
                 currentView,
@@ -232,11 +240,14 @@ public final class HotStuffNode implements LinkReceiver {
         if (!isLeaderOf(msg)) return;
         if (!isPhaseCertificate(msg, Phase.COMMIT)) return;
 
-        String command = msg.getBlock().getCommand();
-        log("DECIDED cmd=" + command);
-        ledger.append(command);
+        List<Transaction> txs = msg.getBlock().getTransactions();
+        log("DECIDED cmd=" + txs.size() + " txs, view=" + currentView);
+        for (Transaction tx : txs) {
+            ledger.append(tx.toString());
+        }
+        
         if (onDecide != null) {
-            onDecide.accept(command);
+            onDecide.accept(msg.getBlock().getHash());
         }
         advanceView();
     }
@@ -373,7 +384,7 @@ public final class HotStuffNode implements LinkReceiver {
                 resetViewTimer();
             }
             case COMMIT -> {
-                log("DECIDE view=" + currentView + " cmd=" + block.getCommand());
+                log("DECIDE view=" + currentView + " txs=" + block.getTransactions().size());
                 broadcast(new HotStuffMessage(MessageType.HOTSTUFF_DECIDE, currentView, block, qc, intId));
             }
         }

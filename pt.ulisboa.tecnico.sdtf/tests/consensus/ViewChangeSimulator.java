@@ -72,18 +72,19 @@ public class ViewChangeSimulator {
         }
 
         void start() {
-            resetTimer();
+            HotStuffMessage newViewMsg = new HotStuffMessage(
+                    MessageType.HOTSTUFF_NEW_VIEW, currentView, null, prepareQC, id);
+    
             if (isLeader(currentView)) {
-                String value;
-                synchronized (this) { value = pending.poll(); }
-                if (value != null) {
-                    String parentHash = prepareQC != null ? prepareQC.getBlockHash() : "GENESIS";
-                    Block block = new Block(parentHash, value, currentView, id);
-                    log("PREPARE view=" + currentView + " cmd=" + value);
-                    bus.broadcast(id, new HotStuffMessage(
-                            MessageType.HOTSTUFF_PREPARE, currentView, block, prepareQC, id));
-                }
-            }
+                newViews.computeIfAbsent(currentView, k -> new ArrayList<>())
+                        .add(newViewMsg);
+                tryFormNewViewQuorum(currentView);
+            }       
+    
+            final long v = currentView;
+            scheduleOutside(() -> bus.send(id, (int) Math.floorMod(v, n), newViewMsg));
+    
+            resetTimer();
         }
 
         void stop() { timerPool.shutdownNow(); }
