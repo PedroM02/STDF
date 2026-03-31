@@ -1,7 +1,10 @@
 package consensus;
 
+import blockchain.BlockPersistence;
 import blockchain.BlockchainService;
 import blockchain.InMemoryLedger;
+import blockchain.WorldState;
+import blockchain.GenesisBlock;
 import common.Address;
 import common.Membership;
 import common.NodeConfig;
@@ -76,15 +79,17 @@ public final class Simulator {
                         RETRY_INTERVAL_MS
                 );
 
-                BlockchainService ledger = new InMemoryLedger();
+                WorldState worldState = GenesisBlock.createWorldState();
+                Block genesisBlock = GenesisBlock.create();
+                BlockchainService ledger = new InMemoryLedger(worldState, genesisBlock, new BlockPersistence("blocks/node-" + i));
                 HotStuffNode node = new HotStuffNode(
                         i,
                         n,
                         membership,
                         link,
                         ledger,
-                        decidedValue -> {
-                            System.out.println("[Callback node-" + nodeId + "] decided " + decidedValue);
+                        response -> {
+                            System.out.println("[Callback node-" + nodeId + "] decided block=" + response.getRequestId() + " index=" + response.getIndex() + " success=" + response.isSuccess());
                             decisions.countDown();
                         },
                         VIEW_TIMEOUT_MS,
@@ -138,7 +143,7 @@ System.out.println("All handshakes complete, starting consensus");
                 "alice",
                 "bob",
                 100L,
-                10L,
+                1L,
                 21000L,
                 0L,
                 null
@@ -156,7 +161,8 @@ System.out.println("All handshakes complete, starting consensus");
             } else {
                 System.out.println("All nodes decided");
                 for (int i = 0; i < ledgers.size(); i++) {
-                    System.out.println("  Ledger node-" + i + ": " + ledgers.get(i).readAll());
+                    System.out.println("  Ledger node-" + i + ": " + ledgers.get(i).size() + " blocks");
+                    System.out.println("  WorldState node-" + i + ": " + ledgers.get(i).getWorldState());
                 }
             }
         } catch (InterruptedException e) {

@@ -35,7 +35,7 @@ public final class LocalAppendGateway implements AppendGateway {
         }
 
         try {
-            int index = blockchainService.append(value);
+            int index = blockchainService.size();
             return new ClientAppendResponse(requestId, clientId, true, index, null);
         } catch (RuntimeException e) {
             return new ClientAppendResponse(requestId, clientId, false, FAILED_INDEX, "INTERNAL_ERROR");

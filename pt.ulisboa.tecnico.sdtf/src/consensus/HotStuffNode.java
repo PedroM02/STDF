@@ -6,6 +6,7 @@ import common.ProcessId;
 import crypto.ThresholdSignatureService;
 import links.AuthenticatedPerfectLink;
 import links.LinkReceiver;
+import messages.ClientAppendResponse;
 import messages.MessageId;
 import messages.MessageType;
 import messages.ProtocolMessage;
@@ -59,7 +60,7 @@ public final class HotStuffNode implements LinkReceiver {
     private final Membership membership;
     private final AuthenticatedPerfectLink link;
     private final BlockchainService ledger;
-    private final Consumer<String> onDecide;
+    private final Consumer<ClientAppendResponse> onDecide;
     private final long viewTimeoutMs;
     private final long configVersion;
     private final ThresholdSignatureService thresholdSignatureService;
@@ -88,7 +89,7 @@ public final class HotStuffNode implements LinkReceiver {
             Membership membership,
             AuthenticatedPerfectLink link,
             BlockchainService ledger,
-            Consumer<String> onDecide,
+            Consumer<ClientAppendResponse> onDecide,
             long viewTimeoutMs,
             long configVersion,
             ThresholdSignatureService thresholdSignatureService
@@ -113,7 +114,7 @@ public final class HotStuffNode implements LinkReceiver {
             Membership membership,
             AuthenticatedPerfectLink link,
             BlockchainService ledger,
-            Consumer<String> onDecide,
+            Consumer<ClientAppendResponse> onDecide,
             ThresholdSignatureService thresholdSignatureService
     ) {
         this(intId, n, membership, link, ledger, onDecide, 5000, 1L, thresholdSignatureService);
@@ -240,14 +241,18 @@ public final class HotStuffNode implements LinkReceiver {
         if (!isLeaderOf(msg)) return;
         if (!isPhaseCertificate(msg, Phase.COMMIT)) return;
 
-        List<Transaction> txs = msg.getBlock().getTransactions();
-        log("DECIDED cmd=" + txs.size() + " txs, view=" + currentView);
-        for (Transaction tx : txs) {
-            ledger.append(tx.toString());
-        }
-        
+        Block block = msg.getBlock();
+        log("DECIDED block with " + block.getTransactions().size() + " txs, view=" + currentView);
+        ledger.appendBlock(block);
         if (onDecide != null) {
-            onDecide.accept(msg.getBlock().getHash());
+            ClientAppendResponse response = new ClientAppendResponse(
+                block.getHash(),
+                "client",
+                true,
+                ledger.size() - 1,
+                null
+            );
+            onDecide.accept(response);
         }
         advanceView();
     }

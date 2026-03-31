@@ -1,10 +1,13 @@
 package blockchain;
 
+import consensus.Block;
+import transaction.Transaction;
 import java.util.List;
 
 public interface BlockchainService {
-    List<String> readAll();
-    String readAt(int index);
+    void appendBlock(Block block);
+    Block getBlock(int index);
+    Block getLatestBlock();
     int size();
-    int append(String value);
+    WorldState getWorldState();
 }
