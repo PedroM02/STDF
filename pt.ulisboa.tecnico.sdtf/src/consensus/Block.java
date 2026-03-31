@@ -1,43 +1,60 @@
 package consensus;
 
+import crypto.HashUtils;
+import transaction.Transaction;
+
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
-import crypto.HashUtils;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 
 public class Block implements Serializable {
 
     private final String parentHash;
-    private final String command;
+    private final List<Transaction> transactions;
     private final long view;
     private final int proposerId;
 
-    public Block(String parentHash, String command, long view, int proposerId) {
+    public Block(String parentHash, List<Transaction> transactions,
+                 long view, int proposerId) {
         this.parentHash = parentHash;
-        this.command = command;
+        // ordena por gasPrice decrescente ao construir o bloco
+        this.transactions = transactions.stream()
+                .sorted(Comparator.comparingLong(Transaction::getGasPrice).reversed())
+                .toList();
         this.view = view;
         this.proposerId = proposerId;
     }
 
-    public String getParentHash() { return parentHash; }
-    public String getCommand() { return command; }
-    public long getView() { return view; }
-    public int getProposerId() { return proposerId; }
+    public String getParentHash()            { return parentHash; }
+    public List<Transaction> getTransactions() { return transactions; }
+    public long getView()                    { return view; }
+    public int getProposerId()               { return proposerId; }
 
     public String getHash() {
-        String data = parentHash + "|" + command + "|" + view + "|" + proposerId;
+        StringBuilder sb = new StringBuilder();
+        sb.append(parentHash).append("|").append(view).append("|").append(proposerId);
+        for (Transaction tx : transactions) {
+            sb.append("|").append(tx.getFrom())
+              .append(tx.getTo())
+              .append(tx.getValue())
+              .append(tx.getNonce());
+        }
         try {
-            byte[] hash = HashUtils.sha256(data.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) sb.append(String.format("%02x", b));
-            return sb.toString();
+            byte[] hash = HashUtils.sha256(sb.toString().getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (byte b : hash) hex.append(String.format("%02x", b));
+            return hex.toString();
         } catch (Exception e) {
-            // Fallback to simple hash
-            return Integer.toHexString(data.hashCode());
+            return Integer.toHexString(sb.toString().hashCode());
         }
     }
 
     @Override
     public String toString() {
-        return "Block{cmd=" + command + ", view=" + view + ", hash=" + getHash().substring(0, 8) + "...}";
+        return "Block{txs=" + transactions.size() +
+               ", view=" + view +
+               ", hash=" + getHash().substring(0, 8) + "...}";
     }
 }
