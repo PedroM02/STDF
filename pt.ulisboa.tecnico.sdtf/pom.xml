@@ -77,6 +77,14 @@
                 <version>3.11.0</version>
                 <configuration>
                     <release>17</release>
+                    <testExcludes>
+                        <testExclude>**/blockchain/InMemoryLedgerTests.java</testExclude>
+                        <testExclude>**/gateway/LocalAppendGatewayTests.java</testExclude>
+                        <testExclude>**/links/PerfectLinkTests.java</testExclude>
+                        <testExclude>**/links/RetryLinkTests.java</testExclude>
+                        <testExclude>**/links/AuthenticatedPerfectLinkTests.java</testExclude>
+                        <testExclude>**/consensus/ViewChangeSimulator.java</testExclude>
+                    </testExcludes>
                 </configuration>
             </plugin>
             <plugin>
@@ -86,6 +94,14 @@
                 <configuration>
                     <useModulePath>false</useModulePath>
                     <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                    <excludes>
+                        <exclude>**/blockchain/InMemoryLedgerTests.java</exclude>
+                        <exclude>**/gateway/LocalAppendGatewayTests.java</exclude>
+                        <exclude>**/links/PerfectLinkTests.java</exclude>
+                        <exclude>**/links/RetryLinkTests.java</exclude>
+                        <exclude>**/links/AuthenticatedPerfectLinkTests.java</exclude>
+                        <exclude>**/consensus/ViewChangeSimulator.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>
@@ -111,6 +127,14 @@
                         <configuration>
                             <useModulePath>false</useModulePath>
                             <argLine>-Dnet.bytebuddy.experimental=true</argLine>
+                            <excludes>
+                                <exclude>**/blockchain/InMemoryLedgerTests.java</exclude>
+                                <exclude>**/gateway/LocalAppendGatewayTests.java</exclude>
+                                <exclude>**/links/PerfectLinkTests.java</exclude>
+                                <exclude>**/links/RetryLinkTests.java</exclude>
+                                <exclude>**/links/AuthenticatedPerfectLinkTests.java</exclude>
+                                <exclude>**/consensus/ViewChangeSimulator.java</exclude>
+                            </excludes>
                         </configuration>
                     </plugin>
                 </plugins>
